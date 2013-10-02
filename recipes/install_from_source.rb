@@ -35,7 +35,7 @@ end
 # Let the user override the source url in the attributes
 nodejs_src_url = "#{node['nodejs']['src_url']}/#{nodejs_tar_path}"
 
-remote_file "/usr/local/src/#{nodejs_tar}" do
+remote_file "#{Chef::Config[:file_cache_path]}/#{nodejs_tar}" do
   source nodejs_src_url
   checksum node['nodejs']['checksum']
   mode 0644
@@ -44,8 +44,8 @@ end
 
 # --no-same-owner required overcome "Cannot change ownership" bug
 # on NFS-mounted filesystem
-execute "tar --no-same-owner -zxf #{nodejs_tar}" do
-  cwd "/usr/local/src"
+execute "tar --no-same-owner -zxf #{nodejs_tar} -C /usr/local/src/" do
+  cwd "#{Chef::Config[:file_cache_path]}"
   creates "/usr/local/src/node-v#{node['nodejs']['version']}"
 end
 
