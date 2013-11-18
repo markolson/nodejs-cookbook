@@ -39,8 +39,7 @@ end
 
 # Let the user override the source url in the attributes
 nodejs_bin_url = "#{node['nodejs']['src_url']}/#{nodejs_tar_path}"
-Chef::Log.info(arch)
-Chef::Log.info(nodejs_bin_url)
+
 # Download it:
 remote_file "#{Chef::Config[:file_cache_path]}/#{nodejs_tar}" do
   source nodejs_bin_url
