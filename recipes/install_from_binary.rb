@@ -39,9 +39,10 @@ end
 
 # Let the user override the source url in the attributes
 nodejs_bin_url = "#{node['nodejs']['src_url']}/#{nodejs_tar_path}"
-
+Chef::Log.info(arch)
+Chef::Log.info(nodejs_bin_url)
 # Download it:
-remote_file "/usr/local/src/#{nodejs_tar}" do
+remote_file "#{Chef::Config[:file_cache_path]}/#{nodejs_tar}" do
   source nodejs_bin_url
   checksum expected_checksum
   mode 0644
@@ -51,13 +52,13 @@ end
 # Where we will install the binaries and libs to (normally /usr/local):
 destination_dir = node['nodejs']['dir']
 
-install_not_needed = File.exists?("#{node['nodejs']['dir']}/bin/node") && `#{node['nodejs']['dir']}/bin/node --version`.chomp == "v#{node['nodejs']['version']}" 
+install_not_needed = File.exists?("#{node['nodejs']['dir']}/bin/node") && `#{node['nodejs']['dir']}/bin/node --version`.chomp == "v#{node['nodejs']['version']}"
 
 # Verify the SHA sum of the downloaded file:
 ruby_block "verify_sha_sum" do
     block do
         require 'digest/sha1'
-        calculated_sha256_hash = Digest::SHA256.file("/usr/local/src/#{nodejs_tar}")
+        calculated_sha256_hash = Digest::SHA256.file("#{Chef::Config[:file_cache_path]}/#{nodejs_tar}")
         if calculated_sha256_hash != expected_checksum
             raise "SHA256 Hash of #{nodejs_tar} did not match!  Expected #{expected_checksum} found #{calculated_sha256_hash}"
         end
@@ -68,7 +69,7 @@ end
 # One hopes that we can trust the contents of the node tarball not to overwrite anything it shouldn't!
 execute "install package to system" do
     command <<-EOF
-            tar xf /usr/local/src/#{nodejs_tar} \
+            tar xf #{Chef::Config[:file_cache_path]}/#{nodejs_tar} \
             --strip-components=1  --no-same-owner \
             -C #{destination_dir} \
             #{package_stub}/bin \
