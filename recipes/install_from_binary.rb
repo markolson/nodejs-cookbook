@@ -40,30 +40,30 @@ end
 # Let the user override the source url in the attributes
 nodejs_bin_url = "#{node['nodejs']['src_url']}/#{nodejs_tar_path}"
 
+# Verify the SHA sum of the downloaded file:
+ruby_block "verify_sha_sum" do
+    block do
+        raise_if_checksum_mismatch("#{Chef::Config[:file_cache_path]}/#{nodejs_tar}", expected_checksum)
+    end
+    action :nothing
+end
+already_installed = false
+if File.exists?("#{node['nodejs']['dir']}/bin/node")
+  node_version =  Mixlib::ShellOut.new("#{node['nodejs']['dir']}/bin/node --version").run_command
+  already_installed = node_version.stdout.chomp == "v#{node['nodejs']['version']}"
+end
+
 # Download it:
 remote_file "#{Chef::Config[:file_cache_path]}/#{nodejs_tar}" do
   source nodejs_bin_url
   checksum expected_checksum
   mode 0644
   action :create_if_missing
+  notifies :run, "ruby_block[verify_sha_sum]", :immediately
 end
 
 # Where we will install the binaries and libs to (normally /usr/local):
 destination_dir = node['nodejs']['dir']
-
-install_not_needed = File.exists?("#{node['nodejs']['dir']}/bin/node") && `#{node['nodejs']['dir']}/bin/node --version`.chomp == "v#{node['nodejs']['version']}"
-
-# Verify the SHA sum of the downloaded file:
-ruby_block "verify_sha_sum" do
-    block do
-        require 'digest/sha1'
-        calculated_sha256_hash = Digest::SHA256.file("#{Chef::Config[:file_cache_path]}/#{nodejs_tar}")
-        if calculated_sha256_hash != expected_checksum
-            raise "SHA256 Hash of #{nodejs_tar} did not match!  Expected #{expected_checksum} found #{calculated_sha256_hash}"
-        end
-    end
-    not_if { !node['nodejs']['check_sha'] or install_not_needed }
-end
 
 # One hopes that we can trust the contents of the node tarball not to overwrite anything it shouldn't!
 execute "install package to system" do
@@ -75,6 +75,5 @@ execute "install package to system" do
             #{package_stub}/lib \
             #{package_stub}/share
         EOF
-
-    not_if { install_not_needed }
+    not_if { already_installed }
 end

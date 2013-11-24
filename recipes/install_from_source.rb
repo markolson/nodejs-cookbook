@@ -29,28 +29,41 @@ end
 
 nodejs_tar = "node-v#{node['nodejs']['version']}.tar.gz"
 nodejs_tar_path = nodejs_tar
+
 if node['nodejs']['version'].split('.')[1].to_i >= 5
   nodejs_tar_path = "v#{node['nodejs']['version']}/#{nodejs_tar_path}"
 end
 # Let the user override the source url in the attributes
 nodejs_src_url = "#{node['nodejs']['src_url']}/#{nodejs_tar_path}"
 
+ruby_block "verify_sha_sum" do
+    block do
+        raise_if_checksum_mismatch("#{Chef::Config[:file_cache_path]}/#{nodejs_tar}", node['nodejs']['checksum'])
+    end
+    action :nothing
+end
+already_installed = false
+if File.exists?("#{node['nodejs']['dir']}/bin/node")
+  node_version =  Mixlib::ShellOut.new("#{node['nodejs']['dir']}/bin/node --version").run_command
+  already_installed = node_version.stdout.chomp == "v#{node['nodejs']['version']}"
+end
+
 remote_file "#{Chef::Config[:file_cache_path]}/#{nodejs_tar}" do
   source nodejs_src_url
   checksum node['nodejs']['checksum']
   mode 0644
   action :create_if_missing
+  notifies :run, "ruby_block[verify_sha_sum]", :immediately
 end
 
 # --no-same-owner required overcome "Cannot change ownership" bug
 # on NFS-mounted filesystem
 execute "tar --no-same-owner -zxf #{nodejs_tar} -C /usr/local/src/" do
-  cwd "#{Chef::Config[:file_cache_path]}"
+  cwd Chef::Config[:file_cache_path]
   creates "/usr/local/src/node-v#{node['nodejs']['version']}"
 end
 
 bash "compile node.js (on #{node['nodejs']['make_threads']} cpu)" do
-  # OSX doesn't have the attribute so arbitrarily default 2
   cwd "/usr/local/src/node-v#{node['nodejs']['version']}"
   code <<-EOH
     PATH="/usr/local/bin:$PATH"
@@ -64,5 +77,5 @@ execute "nodejs make install" do
   environment({"PATH" => "/usr/local/bin:/usr/bin:/bin:$PATH"})
   command "make install"
   cwd "/usr/local/src/node-v#{node['nodejs']['version']}"
-  not_if {::File.exists?("#{node['nodejs']['dir']}/bin/node") && `#{node['nodejs']['dir']}/bin/node --version`.chomp == "v#{node['nodejs']['version']}" }
+  not_if { already_installed }
 end
